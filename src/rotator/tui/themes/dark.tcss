@@ -1,3 +1,6 @@
+$text: #C9D1D9;
+$text-muted: #8B949E;
+
 Screen {
     background: $background;
     color: $text;

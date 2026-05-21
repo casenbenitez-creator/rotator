@@ -55,8 +55,6 @@ class RotatorApp(App):
             error="#F85149",
             warning="#D29922",
             success="#3FB950",
-            text="#C9D1D9",
-            text_muted="#8B949E",
         ))
         self.register_theme(Theme(
             name="light",
@@ -68,8 +66,6 @@ class RotatorApp(App):
             error="#CF222E",
             warning="#9A6700",
             success="#1A7F37",
-            text="#1F2328",
-            text_muted="#656D76",
         ))
 
     def _load_keys(self):
