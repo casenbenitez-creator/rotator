@@ -7,7 +7,7 @@ import tempfile
 import time
 from typing import Any
 
-from rotator.core.provider_config import load_providers, get_models_for_provider
+from rotator.core.provider_config import load_providers, get_model_rpd, get_provider_rpd
 from rotator.core.tracker import RPDTracker
 
 
@@ -155,9 +155,10 @@ class KeyPool:
     def _resolve_max_rpd(self, provider: str, model: str) -> int:
         try:
             providers = load_providers()
-            models = get_models_for_provider(providers, provider)
-            model_config = models.get(model, {})
-            return model_config.get("rpd", 1500)
+            model_rpd = get_model_rpd(providers, provider, model)
+            if model_rpd is not None:
+                return model_rpd
+            return get_provider_rpd(providers, provider)
         except Exception:
             return 1500
 
