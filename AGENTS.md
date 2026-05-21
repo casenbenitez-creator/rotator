@@ -5,8 +5,8 @@ Local reverse-proxy + TUI for rotating API keys across multiple providers (Gemin
 ## Commands
 
 - `pip install -e .` — install in dev mode
-- `python -m rotator` — launch TUI
-- `python -m rotator --proxy-only` — headless proxy (no TUI)
+- `python start.py` — launch TUI (or `python -m rotator`)
+- `python start.py --proxy-only` — headless proxy (no TUI)
 - `ruff check src/` — lint (mandatory after every edit)
 - `python -m py_compile <file>` — syntax check
 

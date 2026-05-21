@@ -1,4 +1,4 @@
-"""Entry point for rotator. Just run:  python rotator.py"""
+"""Entry point. Run:  python start.py"""
 
 from rotator.__main__ import main
 
