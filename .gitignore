@@ -1,0 +1,22 @@
+# Secrets
+.env
+auth.json
+*_pool.json
+*_pool.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.virtual_documents/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store

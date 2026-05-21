@@ -1,0 +1,25 @@
+# Secrets and keys
+*.key
+*.pem
+.env
+auth.json
+*_pool.json
+*_pool.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.sln
+
+# OS
+Thumbs.db
+.DS_Store
