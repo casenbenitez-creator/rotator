@@ -62,6 +62,17 @@ class RPDTracker:
         self._save()
         self._increment_rpm(key, model)
 
+    def _import_usage(self, key: str, model: str, count: int, day_start_ts: float):
+        """Импорт usage из GeminiTranslator (request timestamps)."""
+        model_usage = self._usage.setdefault(key, {})
+        if model not in model_usage:
+            model_usage[model] = UsageEntry(window_start=day_start_ts)
+        existing = model_usage[model]
+        # Если tracker уже имеет более свежие данные — не затираем
+        if count > existing.count or existing.window_start < day_start_ts:
+            existing.count = max(existing.count, count)
+            existing.window_start = day_start_ts
+
     def _get_entry(self, key: str, model: str) -> UsageEntry:
         model_usage = self._usage.setdefault(key, {})
         if model not in model_usage:

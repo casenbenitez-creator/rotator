@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import time
+from collections import deque
+from datetime import datetime
+from pathlib import Path
 
 from textual.app import App
 from textual.theme import Theme
 
-import json
-from pathlib import Path
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef,import-not-found]
 
 from rotator.core.auth_bridge import load_auth_keys
 from rotator.core.key_pool import KeyPool
@@ -88,8 +95,6 @@ class RotatorApp(App):
         return "other"
 
     def _load_keys(self):
-        # 1. Из pool-файла (KeyPool.__init__ уже загрузил из pool_data/)
-        # 2. Из GeminiTranslator (~/.epub_translator/settings.json) — новые ключи
         gt_path = Path.home() / ".epub_translator" / "settings.json"
         if gt_path.is_file():
             try:
@@ -98,14 +103,58 @@ class RotatorApp(App):
                 raw_keys = gt_data.get(
                     "api_keys_with_status", gt_data.get("api_keys", [])
                 )
+
+                tz = ZoneInfo("America/Los_Angeles")
+                now = datetime.now(tz)
+                day_start = datetime(
+                    now.year, now.month, now.day, 0, 1, 0, tzinfo=tz
+                )
+                day_start_ts = day_start.timestamp()
+                now_ts = time.time()
+
                 for item in raw_keys:
                     key = item["key"] if isinstance(item, dict) else item
-                    if key and isinstance(key, str):
-                        prov = self._detect_provider(key.strip())
-                        self.key_pool.add_key(prov, key.strip())
+                    if not key or not isinstance(key, str):
+                        continue
+                    prov = self._detect_provider(key.strip())
+                    self.key_pool.add_key(prov, key.strip())
+
+                    if not isinstance(item, dict):
+                        continue
+
+                    status_by_model = item.get("status_by_model", {})
+                    for model_name, status in status_by_model.items():
+                        if not model_name or model_name == "None":
+                            continue
+                        reqs = status.get("requests", [])
+
+                        todays_count = sum(
+                            1 for ts in reqs
+                            if isinstance(ts, (int, float))
+                            and ts >= day_start_ts
+                        )
+                        if todays_count > 0:
+                            self.key_pool._tracker._import_usage(
+                                key.strip(), model_name,
+                                todays_count, day_start_ts,
+                            )
+
+                        recent = [
+                            ts for ts in reqs
+                            if isinstance(ts, (int, float))
+                            and ts > now_ts - 60
+                        ]
+                        if recent:
+                            rpm_dq = (
+                                self.key_pool._tracker._rpm
+                                .setdefault(key.strip(), {})
+                                .setdefault(model_name, deque())
+                            )
+                            for ts in recent:
+                                rpm_dq.append(ts)
             except Exception:
                 pass
-        # 3. Из auth.json (opencode)
+
         keys_by_provider = load_auth_keys()
         for provider, keys in keys_by_provider.items():
             for key in keys:
