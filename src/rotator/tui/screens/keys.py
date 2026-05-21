@@ -45,7 +45,7 @@ class KeysScreen(Screen):
                 for model_name, model_info in key_info.get("models", {}).items():
                     rpd = model_info.get("remaining_rpd", 0)
                     exhausted = model_info.get("exhausted", False)
-                    if exhausted:
+                    if exhausted or rpd <= 0:
                         lines.append(
                             f"  [red]{key_masked} | {model_name}"
                             f" | RPD: {rpd} | EXHAUSTED[/]"

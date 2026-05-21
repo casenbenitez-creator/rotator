@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime
 from typing import Any
 
 from rotator.core.provider_config import (
@@ -14,6 +15,11 @@ from rotator.core.provider_config import (
     get_provider_rpd,
 )
 from rotator.core.tracker import RPDTracker
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef,import-not-found]
 
 
 POOL_DIR = os.path.join(
@@ -26,7 +32,8 @@ class KeyPool:
     def __init__(self, pool_dir: str = POOL_DIR):
         self._pool_dir = pool_dir
         self._pool_file = os.path.join(pool_dir, "key_pool.json")
-        self._lock = asyncio.Lock()
+        # Per-provider lock — google и openai выбирают ключи независимо
+        self._locks: dict[str, asyncio.Lock] = {}
         self._tracker = RPDTracker(pool_dir)
 
         # provider -> list of keys in round-robin order
@@ -67,7 +74,8 @@ class KeyPool:
         return True
 
     async def get_next_available_key(self, provider: str, model: str) -> str | None:
-        async with self._lock:
+        lock = self._locks.setdefault(provider, asyncio.Lock())
+        async with lock:
             keys = self._keys.get(provider)
             if not keys:
                 return None
@@ -84,24 +92,31 @@ class KeyPool:
             return None
 
     async def mark_exhausted(self, key: str, model: str):
-        async with self._lock:
+        lock = self._locks.get(self._key_provider.get(key, ""), asyncio.Lock())
+        async with lock:
             state = self._get_model_state(key, model)
             state["exhausted"] = True
+            state["cooldown_until"] = 0.0
+            state["exhausted_day"] = self._today_str()
             self._save()
 
     async def mark_cooldown(self, key: str, model: str, seconds: int):
-        async with self._lock:
+        lock = self._locks.get(self._key_provider.get(key, ""), asyncio.Lock())
+        async with lock:
             state = self._get_model_state(key, model)
             state["cooldown_until"] = time.time() + seconds
             state["exhausted"] = True
+            state.pop("exhausted_day", None)
             self._save()
 
     async def mark_success(self, key: str, model: str, tokens: int = 0):
-        async with self._lock:
+        lock = self._locks.get(self._key_provider.get(key, ""), asyncio.Lock())
+        async with lock:
             self._tracker.increment(key, model, tokens)
             state = self._get_model_state(key, model)
             state["exhausted"] = False
             state["cooldown_until"] = 0.0
+            state.pop("exhausted_day", None)
             self._save()
 
     def get_remaining_rpd(self, key: str, model: str, provider: str) -> int:
@@ -161,16 +176,34 @@ class KeyPool:
 
     def _is_available(self, key: str, model: str, max_rpd: int) -> bool:
         state = self._get_model_state(key, model)
+
         if state.get("exhausted", False):
             cooldown_until = state.get("cooldown_until", 0.0)
             if cooldown_until > time.time():
                 return False
+            # cooldown expired — снимаем exhausted
             state["exhausted"] = False
             state["cooldown_until"] = 0.0
+            state.pop("exhausted_day", None)
 
-        if self._tracker.get_remaining(key, model, max_rpd) <= 0:
+        entry = self._tracker._get_entry(key, model)
+        if self._tracker._should_reset(entry):
+            # Новый день — сбрасываем любые exhausted
+            if state.get("exhausted"):
+                state["exhausted"] = False
+                state.pop("exhausted_day", None)
+            # Сбрасываем RPD через трекер
+            self._tracker._reset_entry(entry)
+            self._tracker._save()
+
+        # RPD check — если исчерпан, помечаем exhausted до daily reset
+        if max_rpd > 0 and entry.count >= max_rpd:
+            state["exhausted"] = True
+            state["cooldown_until"] = 0.0
+            state["exhausted_day"] = self._today_str()
             return False
 
+        # RPM check
         max_rpm = self._resolve_max_rpm_for_key(key, model)
         if max_rpm and self._tracker.get_rpm_remaining(key, model, max_rpm) <= 0:
             return False
@@ -184,6 +217,10 @@ class KeyPool:
             "exhausted": False,
             "cooldown_until": 0.0,
         })
+
+    @staticmethod
+    def _today_str() -> str:
+        return datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
 
     def _resolve_max_rpd(self, provider: str, model: str) -> int:
         try:
