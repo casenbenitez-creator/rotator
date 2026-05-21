@@ -7,7 +7,12 @@ import tempfile
 import time
 from typing import Any
 
-from rotator.core.provider_config import load_providers, get_model_rpd, get_provider_rpd
+from rotator.core.provider_config import (
+    load_providers,
+    get_model_rpd,
+    get_model_rpm,
+    get_provider_rpd,
+)
 from rotator.core.tracker import RPDTracker
 
 
@@ -103,6 +108,12 @@ class KeyPool:
         max_rpd = self._resolve_max_rpd(provider, model)
         return self._tracker.get_remaining(key, model, max_rpd)
 
+    def get_remaining_rpm(self, key: str, model: str, provider: str) -> int:
+        max_rpm = self._resolve_max_rpm(provider, model)
+        if max_rpm is None:
+            return 999
+        return self._tracker.get_rpm_remaining(key, model, max_rpm)
+
     def get_stats(self, provider: str) -> dict[str, Any]:
         keys = self._keys.get(provider, [])
         result: dict[str, list[dict[str, Any]]] = {"keys": []}
@@ -122,11 +133,13 @@ class KeyPool:
                 ) if model else 0
                 exhausted = state.get("exhausted", False) if state else False
                 cooldown = state.get("cooldown_until", 0.0) if state else 0.0
+                remaining_rpm = self.get_remaining_rpm(key, model, provider)
                 models_info[model] = {
                     "exhausted": exhausted,
                     "cooldown_until": cooldown,
                     "remaining_rpd": remaining,
                     "max_rpd": max_rpd,
+                    "remaining_rpm": remaining_rpm,
                 }
 
             result["keys"].append({
@@ -155,8 +168,14 @@ class KeyPool:
             state["exhausted"] = False
             state["cooldown_until"] = 0.0
 
-        remaining = self._tracker.get_remaining(key, model, max_rpd)
-        return remaining > 0
+        if self._tracker.get_remaining(key, model, max_rpd) <= 0:
+            return False
+
+        max_rpm = self._resolve_max_rpm_for_key(key, model)
+        if max_rpm and self._tracker.get_rpm_remaining(key, model, max_rpm) <= 0:
+            return False
+
+        return True
 
     def _get_model_state(self, key: str, model: str) -> dict[str, Any]:
         key_states = self._states.setdefault(key, {})
@@ -175,6 +194,19 @@ class KeyPool:
             return get_provider_rpd(providers, provider)
         except Exception:
             return 1500
+
+    def _resolve_max_rpm(self, provider: str, model: str) -> int | None:
+        try:
+            providers = load_providers()
+            return get_model_rpm(providers, provider, model)
+        except Exception:
+            return None
+
+    def _resolve_max_rpm_for_key(self, key: str, model: str) -> int | None:
+        provider = self._key_provider.get(key)
+        if not provider:
+            return None
+        return self._resolve_max_rpm(provider, model)
 
     @staticmethod
     def _mask_key(key: str) -> str:

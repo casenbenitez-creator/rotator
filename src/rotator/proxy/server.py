@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json as jsonlib
 import logging
+import re
 import time
 from typing import Any, Callable, Optional
 
@@ -107,7 +109,11 @@ class ProxyServer:
 
                     if status == 429:
                         model = self._infer_model(request.path)
-                        await self._pool.mark_exhausted(key, model)
+                        cooldown = self._parse_retry_after(resp, resp_body)
+                        if cooldown:
+                            await self._pool.mark_cooldown(key, model, cooldown)
+                        else:
+                            await self._pool.mark_exhausted(key, model)
                         if attempt == 0:
                             new_key = await self._pool.get_next_available_key(
                                 provider, model,
@@ -166,6 +172,37 @@ class ProxyServer:
             if part == "models" and i + 1 < len(parts):
                 return parts[i + 1]
         return "unknown"
+
+    @staticmethod
+    def _parse_retry_after(
+        resp: aiohttp.ClientResponse, body: bytes
+    ) -> int | None:
+        # 1. Retry-After header (секунды)
+        val = resp.headers.get("Retry-After")
+        if val:
+            try:
+                return int(val)
+            except ValueError:
+                pass
+
+        # 2. Gemini: поле retryDelay в JSON-теле
+        if body:
+            try:
+                data = jsonlib.loads(body)
+                details = (
+                    data.get("error", {})
+                    .get("details", [])
+                )
+                for detail in details:
+                    delay = detail.get("retryDelay", "")
+                    if delay:
+                        match = re.search(r"(\d+)", delay)
+                        if match:
+                            return int(match.group(1))
+            except (jsonlib.JSONDecodeError, AttributeError):
+                pass
+
+        return None
 
     def _log_request(
         self,

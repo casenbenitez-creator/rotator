@@ -74,6 +74,13 @@ def get_model_rpd(
     return cfg.get("rpd") if cfg else None
 
 
+def get_model_rpm(
+    providers: dict[str, Any], alias: str, model_name: str
+) -> int | None:
+    cfg = find_model_config(providers, alias, model_name)
+    return cfg.get("rpm") if cfg else None
+
+
 def get_reset_policy(providers: dict[str, Any], alias: str) -> dict[str, Any]:
     provider = get_provider_config(providers, alias)
     return provider.get(

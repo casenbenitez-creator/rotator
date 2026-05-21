@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
+from collections import deque
 from datetime import datetime
 from typing import Any
 
@@ -39,7 +41,11 @@ class RPDTracker:
         self._pool_dir = os.fspath(pool_dir)
         self._usage_file = os.path.join(self._pool_dir, "usage.json")
         self._usage: dict[str, dict[str, UsageEntry]] = {}
+        # RPM rolling window (in-memory only): key -> model -> deque of timestamps
+        self._rpm: dict[str, dict[str, deque[float]]] = {}
         self._load()
+
+    # ---- RPD (daily) ----
 
     def get_remaining(self, key: str, model: str, max_rpd: int) -> int:
         entry = self._get_entry(key, model)
@@ -54,6 +60,7 @@ class RPDTracker:
         entry.count += 1
         entry.token_count += tokens
         self._save()
+        self._increment_rpm(key, model)
 
     def _get_entry(self, key: str, model: str) -> UsageEntry:
         model_usage = self._usage.setdefault(key, {})
@@ -81,6 +88,31 @@ class RPDTracker:
     @staticmethod
     def _now_timestamp() -> float:
         return datetime.now(ZoneInfo("America/Los_Angeles")).timestamp()
+
+    # ---- RPM (rolling 60s) ----
+
+    def get_rpm_remaining(self, key: str, model: str, max_rpm: int) -> int:
+        self._prune_rpm(key, model)
+        dq = self._get_rpm_deque(key, model)
+        return max(0, max_rpm - len(dq))
+
+    def _get_rpm_deque(self, key: str, model: str) -> deque[float]:
+        return self._rpm.setdefault(key, {}).setdefault(model, deque())
+
+    def _prune_rpm(self, key: str, model: str):
+        dq = self._get_rpm_deque(key, model)
+        cutoff = time.time() - 60
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+
+    def _increment_rpm(self, key: str, model: str):
+        dq = self._get_rpm_deque(key, model)
+        dq.append(time.time())
+        # Короткое окно 60с, не храним больше 200
+        if len(dq) > 200:
+            self._prune_rpm(key, model)
+
+    # ---- persistence ----
 
     def _load(self):
         if os.path.isfile(self._usage_file):

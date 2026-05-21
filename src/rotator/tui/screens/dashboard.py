@@ -64,10 +64,12 @@ class DashboardScreen(Screen):
                             continue
                         rpd = model_info.get("remaining_rpd", 0)
                         max_rpd = model_info.get("max_rpd", 1500)
+                        rpm = model_info.get("remaining_rpm", 999)
                         exhausted = model_info.get("exhausted", False)
                         label = (
                             f"  {key_masked} | {model_name}"
                             f" | RPD: {rpd}/{max_rpd}"
+                            f" RPM: {rpm}"
                         )
                         if exhausted or rpd <= 0:
                             label = f"[red]{label} EXHAUSTED[/]"
