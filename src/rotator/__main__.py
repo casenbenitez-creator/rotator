@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 
 
@@ -20,7 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.proxy_only:
         from rotator.proxy.server import run_proxy
 
-        return run_proxy()
+        asyncio.run(run_proxy())
+        return 0
 
     from rotator.app import RotatorApp
 
