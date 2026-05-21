@@ -107,14 +107,28 @@ class KeyPool:
         keys = self._keys.get(provider, [])
         result: dict[str, list[dict[str, Any]]] = {"keys": []}
         for key in keys:
-            states = self._states.get(key, {})
             models_info = {}
-            for model, state in states.items():
+            model_states = self._states.get(key, {}).get("models", {})
+
+            # Объединяем модель-статусы из pool + tracker
+            tracker_models = self._tracker._usage.get(key, {})
+            all_models = set(model_states.keys()) | set(tracker_models.keys())
+
+            for model in sorted(all_models):
+                state = model_states.get(model) or {}
+                max_rpd = self._resolve_max_rpd(provider, model) if model else 0
+                remaining = self._tracker.get_remaining(
+                    key, model, max_rpd
+                ) if model else 0
+                exhausted = state.get("exhausted", False) if state else False
+                cooldown = state.get("cooldown_until", 0.0) if state else 0.0
                 models_info[model] = {
-                    "exhausted": state.get("exhausted", False),
-                    "cooldown_until": state.get("cooldown_until", 0.0),
-                    "remaining_rpd": self.get_remaining_rpd(key, model, provider),
+                    "exhausted": exhausted,
+                    "cooldown_until": cooldown,
+                    "remaining_rpd": remaining,
+                    "max_rpd": max_rpd,
                 }
+
             result["keys"].append({
                 "key": self._mask_key(key),
                 "models": models_info,

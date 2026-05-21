@@ -55,14 +55,23 @@ class DashboardScreen(Screen):
             lines.append(f"[bold]{provider}[/]")
             for key_info in stats.get("keys", []):
                 key_masked = key_info["key"]
-                for model_name, model_info in key_info.get("models", {}).items():
-                    rpd = model_info.get("remaining_rpd", 0)
-                    exhausted = model_info.get("exhausted", False)
-                    status = "exhausted" if exhausted else "active"
-                    label = f"  {key_masked} | {model_name} | RPD: {rpd}"
-                    if status == "exhausted":
-                        label = f"[red]{label} EXHAUSTED[/]"
-                    lines.append(label)
+                models = key_info.get("models", {})
+                if not models:
+                    lines.append(f"  {key_masked} [italic]awaiting first request[/]")
+                else:
+                    for model_name, model_info in models.items():
+                        if not model_name:
+                            continue
+                        rpd = model_info.get("remaining_rpd", 0)
+                        max_rpd = model_info.get("max_rpd", 1500)
+                        exhausted = model_info.get("exhausted", False)
+                        label = (
+                            f"  {key_masked} | {model_name}"
+                            f" | RPD: {rpd}/{max_rpd}"
+                        )
+                        if exhausted or rpd <= 0:
+                            label = f"[red]{label} EXHAUSTED[/]"
+                        lines.append(label)
             lines.append("")
 
         container.update("\n".join(lines) if lines else "  [italic]No keys loaded[/]")
