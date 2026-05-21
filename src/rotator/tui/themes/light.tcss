@@ -1,0 +1,121 @@
+Screen {
+    background: $background;
+    color: $text;
+}
+
+Header {
+    background: $surface;
+    color: $primary;
+    text-style: bold;
+}
+
+Footer {
+    background: $surface;
+    color: $text-muted;
+}
+
+.provider-header {
+    height: 1;
+    text-style: bold;
+    color: $primary;
+    padding: 0 1;
+    background: $surface;
+}
+
+.key-card {
+    height: 3;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+.key-card.green {
+    background: $success 10%;
+    border: tall $success;
+    color: $text;
+}
+
+.key-card.yellow {
+    background: $warning 10%;
+    border: tall $warning;
+    color: $text;
+}
+
+.key-card.red {
+    background: $error 10%;
+    border: tall $error;
+    color: $text;
+}
+
+.stats-panel {
+    height: 5;
+    border: solid $surface;
+    padding: 0 1;
+}
+
+.stats-value {
+    color: $primary;
+    text-style: bold;
+}
+
+.stats-label {
+    color: $text-muted;
+}
+
+.proxy-log {
+    height: 1fr;
+    overflow-y: auto;
+    border: solid $surface;
+    padding: 0 1;
+}
+
+.log-entry {
+    height: 1;
+}
+
+.log-entry.info {
+    color: $text;
+}
+
+.log-entry.warn {
+    color: $warning;
+}
+
+.log-entry.error {
+    color: $error;
+}
+
+.key-list {
+    height: 1fr;
+    overflow-y: auto;
+}
+
+.action-button {
+    background: $primary;
+    color: $background;
+    text-style: bold;
+}
+
+.action-button:hover {
+    background: $secondary;
+}
+
+.status-bar {
+    height: 1;
+    background: $surface;
+    color: $text-muted;
+}
+
+.dashboard-title {
+    height: 3;
+    content-align: center middle;
+    text-style: bold;
+    color: $primary;
+    background: $surface;
+}
+
+.empty-state {
+    color: $text-muted;
+    text-style: italic;
+    height: 3;
+    content-align: center middle;
+}
