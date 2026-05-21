@@ -50,7 +50,7 @@ class KeyPool:
         if key not in self._keys[provider]:
             self._keys[provider].append(key)
         self._key_provider[key] = provider
-        self._states.setdefault(provider, {}).setdefault(key, {"models": {}})
+        self._states.setdefault(key, {"models": {}})
 
     def remove_key(self, key: str) -> bool:
         provider = self._key_provider.pop(key, None)

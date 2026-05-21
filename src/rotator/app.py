@@ -69,9 +69,12 @@ class RotatorApp(App):
         ))
 
     def _load_keys(self):
+        # 1. Загружаем ключи из pool-файла (уже сделано в KeyPool.__init__)
+        # 2. Дополняем из auth.json (не затираем существующие)
         keys_by_provider = load_auth_keys()
         for provider, keys in keys_by_provider.items():
-            self.key_pool.load_keys(provider, keys)
+            for key in keys:
+                self.key_pool.add_key(provider, key)
 
     def _start_proxy(self):
         proxy = ProxyServer(pool=self.key_pool)
