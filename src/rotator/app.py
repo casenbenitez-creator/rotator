@@ -6,6 +6,9 @@ import os
 from textual.app import App
 from textual.theme import Theme
 
+import json
+from pathlib import Path
+
 from rotator.core.auth_bridge import load_auth_keys
 from rotator.core.key_pool import KeyPool
 from rotator.proxy.server import ProxyServer
@@ -68,9 +71,41 @@ class RotatorApp(App):
             success="#1A7F37",
         ))
 
+    @staticmethod
+    def _detect_provider(key: str) -> str:
+        if key.startswith("AIzaSy"):
+            return "google"
+        if key.startswith("sk-or-v1-") or key.startswith("sk-or-"):
+            return "openrouter"
+        if key.startswith("sk-"):
+            return "openai"
+        if key.startswith("nvapi-"):
+            return "nvidia"
+        if key.startswith("hf_"):
+            return "huggingface"
+        if key.startswith("fw_"):
+            return "fireworks-ai"
+        return "other"
+
     def _load_keys(self):
-        # 1. Загружаем ключи из pool-файла (уже сделано в KeyPool.__init__)
-        # 2. Дополняем из auth.json (не затираем существующие)
+        # 1. Из pool-файла (KeyPool.__init__ уже загрузил из pool_data/)
+        # 2. Из GeminiTranslator (~/.epub_translator/settings.json) — новые ключи
+        gt_path = Path.home() / ".epub_translator" / "settings.json"
+        if gt_path.is_file():
+            try:
+                with open(gt_path, encoding="utf-8") as f:
+                    gt_data = json.load(f)
+                raw_keys = gt_data.get(
+                    "api_keys_with_status", gt_data.get("api_keys", [])
+                )
+                for item in raw_keys:
+                    key = item["key"] if isinstance(item, dict) else item
+                    if key and isinstance(key, str):
+                        prov = self._detect_provider(key.strip())
+                        self.key_pool.add_key(prov, key.strip())
+            except Exception:
+                pass
+        # 3. Из auth.json (opencode)
         keys_by_provider = load_auth_keys()
         for provider, keys in keys_by_provider.items():
             for key in keys:
